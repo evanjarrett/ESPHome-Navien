@@ -9,18 +9,6 @@ substitutions:
   friendly_name: Navien Water Heater
   logger_level: WARN
 
-
-# Include basic info in all ESP Home Configs
-# Basic Info Includes
-# logger:
-# wifi:
-# ap:
-# web_server:
-# captive_portal:
-# button: to restart the device
-
-<<: !include .base1.yaml
-
 binary_sensor:
   - platform: status
     name: Status
@@ -31,29 +19,33 @@ esphome:
   friendly_name: Navien Water Heater
 
 esp32:
-  board: esp32dev
+  board: esp32-s3-devkitc-1
   framework:
     type: arduino
 
 # Enable logging
 logger:
-  level: ${logger_level}
-  baud_rate: 0 #disable logging over uart
-
 
 # Enable Home Assistant API
 api:
-  encryption:
-    key: "redacted"
 
+# Allow Over-The-Air updates
 ota:
-  password: "redacted"
+- platform: esphome
+
+# Allow provisioning Wi-Fi via serial
+improv_serial:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
 
 globals:
    - id: init_set_temp
      type: int
      restore_value: yes
-     initial_value: '140'
+     initial_value: '120'
 
 
 #################################
@@ -62,8 +54,8 @@ globals:
 
 uart:
   id: uart_bus
-  tx_pin: 1
-  rx_pin: 3
+  tx_pin: 6
+  rx_pin: 5
   baud_rate: 19200
   data_bits: 8
   stop_bits: 1
@@ -79,7 +71,8 @@ uart:
           // SPECIAL THANKS TO @suva on the HomeAssistant forum for Decoding these.
           // https://community.home-assistant.io/t/navien-hot-water-heater-navilink/330044/92
           //  
-          UARTDebug::log_string(direction, bytes);
+          UARTDebug::log_binary(direction, bytes, '_');
+          UARTDebug::log_int(direction, bytes, '_');
           if (bytes[0] == 247 && bytes[1] == 5 && bytes[2] == 80 && bytes[3] == 80 && bytes[4] == 144 && bytes[5] == 34) {
           // Water information
           id(uart_water_byte0).publish_state(bytes[0]); //Common To all Packets
@@ -93,14 +86,14 @@ uart:
           id(uart_water_byte8).publish_state(bytes[8]);
           id(uart_water_byte9).publish_state(bytes[9]); // System Power: high nibble: Unknown (values 0 and 0x20 observed); low nibble = 0=off 0x5=on
           id(uart_water_byte10).publish_state(bytes[10]);
-          id(set_temp_read).publish_state((bytes[11]/2)); //Set temp - measured in 0.5 degrees C.
-          id(outlet_temp).publish_state((bytes[12]/2));  //Outlet temp - measured in 0.5 degrees C.
-          id(inlet_temp).publish_state((bytes[13]/2)); //Inlet temp - measured in 0.5 degrees C.
+          id(set_temp_read).publish_state((bytes[11]/2.0)); //Set temp - measured in 0.5 degrees C.
+          id(outlet_temp).publish_state((bytes[12]/2.0));  //Outlet temp - measured in 0.5 degrees C.
+          id(inlet_temp).publish_state((bytes[13]/2.0)); //Inlet temp - measured in 0.5 degrees C.
           id(uart_water_byte14).publish_state(bytes[14]);
           id(uart_water_byte15).publish_state(bytes[15]);
           id(uart_water_byte16).publish_state(bytes[16]);
           id(uart_water_byte17).publish_state(bytes[17]);
-          id(water_flow_lpm).publish_state(bytes[18] / 10); //Flow rate - measured in 0.1 liters per minute (divide by 10 to get LPM)
+          id(water_flow_lpm).publish_state(bytes[18] / 10.0); //Flow rate - measured in 0.1 liters per minute (divide by 10 to get LPM)
           id(uart_water_byte19).publish_state(bytes[19]);
           id(uart_water_byte20).publish_state(bytes[20]);
           id(uart_water_byte21).publish_state(bytes[21]);
@@ -122,7 +115,7 @@ uart:
           id(uart_water_byte37).publish_state(bytes[37]);
           id(uart_water_byte38).publish_state(bytes[38]);
           id(uart_water_byte39).publish_state(bytes[39]);
-          id(uart_water_byte40).publish_state(bytes[40]);          
+          id(uart_water_byte40).publish_state(bytes[40]); // This is out of range of the data length, could be garbage value
           }
           else if (bytes[0] == 247 && bytes[1] == 5 && bytes[2] == 80 && bytes[3] == 15 && bytes[4] == 144 && bytes[5] == 42) {
           // Gas information
@@ -150,7 +143,7 @@ uart:
           id(uart_gas_byte21).publish_state(bytes[21]);
           id(low_byte_kcal).publish_state(bytes[22]); //Low byte current gas usage in kcal
           id(high_byte_kcal).publish_state(bytes[23]); //High byte current gas usage in kcal
-          id(total_gas_use_m3).publish_state(bytes[24] / 10); //Total gas usage in 0.1m^3 (divide by 10 to get m^3)
+          id(total_gas_use_m3).publish_state(bytes[24] / 10.0); //Total gas usage in 0.1m^3 (divide by 10 to get m^3)
           id(uart_gas_byte25).publish_state(bytes[25]);
           id(uart_gas_byte26).publish_state(bytes[26]);
           id(uart_gas_byte27).publish_state(bytes[27]);
@@ -166,7 +159,15 @@ uart:
           id(uart_gas_byte37).publish_state(bytes[37]);
           id(uart_gas_byte38).publish_state(bytes[38]);
           id(uart_gas_byte39).publish_state(bytes[39]);
-          id(uart_gas_byte40).publish_state(bytes[40]);          
+          id(uart_gas_byte40).publish_state(bytes[40]);
+          id(uart_gas_byte41).publish_state(bytes[41]);
+          id(uart_gas_byte42).publish_state(bytes[42]);
+          id(uart_gas_byte43).publish_state(bytes[43]);
+          id(uart_gas_byte44).publish_state(bytes[44]);
+          id(uart_gas_byte45).publish_state(bytes[45]);
+          id(uart_gas_byte46).publish_state(bytes[46]);
+          id(uart_gas_byte47).publish_state(bytes[47]);
+          id(uart_gas_byte48).publish_state(bytes[48]); // This is out of range of the data length, could be garbage value
           } else {
           // Handle other cases
           }
@@ -183,7 +184,7 @@ switch:
     restore_mode: ALWAYS_ON
     icon: mdi:water-boiler
     lambda: |-
-      if ((id(uart_water_byte9).state) == 5) {
+      if ((id(uart_water_byte9).state) == 5 || (id(uart_water_byte9).state) == 37) {
         return true;
         id(navien_switch).publish_state(true);
       } else {
@@ -269,7 +270,7 @@ sensor:
     id: uart_water_byte8
     internal: True
   - platform: template
-    name: "WByte_09"
+    name: "WByte_09 - Power State"
     id: uart_water_byte9
     internal: true
   - platform: template
@@ -584,6 +585,38 @@ sensor:
     id: uart_gas_byte40
     internal: True
   - platform: template
+    name: "GByte_41"
+    id: uart_gas_byte41
+    internal: True
+  - platform: template
+    name: "GByte_42"
+    id: uart_gas_byte42
+    internal: True
+  - platform: template
+    name: "GByte_43"
+    id: uart_gas_byte43
+    internal: True
+  - platform: template
+    name: "GByte_44"
+    id: uart_gas_byte44
+    internal: True
+  - platform: template
+    name: "GByte_45"
+    id: uart_gas_byte45
+    internal: True
+  - platform: template
+    name: "GByte_46"
+    id: uart_gas_byte46
+    internal: True
+  - platform: template
+    name: "GByte_47"
+    id: uart_gas_byte47
+    internal: True
+  - platform: template
+    name: "GByte_48"
+    id: uart_gas_byte48
+    internal: True
+  - platform: template
     name: "Total Gas Use Cubic Meters"
     id: total_gas_use_m3 # divide by 2.832 to get CCF
     icon: mdi:gas-cylinder
@@ -626,7 +659,7 @@ sensor:
     accuracy_decimals: 3
     state_class: "measurement"
     lambda: |-
-      return max((id(outlet_temp).state - id(inlet_temp).state) * id(water_flow_gpm).state * 8.334 * 60 / 0.92 / 1000, 0.0);
+      return max((id(outlet_temp).state - id(inlet_temp).state) * id(water_flow_gpm).state * 8.334 * 60.0 / 0.92 / 1000.0, 0.0);
   # calculated as shown here https://www.plctalk.net/threads/low-byte-high-byte.78315/
   - platform: template
     name: "Total kCal"
@@ -637,5 +670,3 @@ sensor:
     state_class: "measurement"
     lambda: |-
       return (id(high_byte_kcal).state*256) + (id(low_byte_kcal).state); 
-
-
