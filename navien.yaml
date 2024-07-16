@@ -86,14 +86,15 @@ uart:
           id(uart_water_byte8).publish_state(bytes[8]); // 0, 8, 32 related to recirc running
           id(uart_water_byte9).publish_state(bytes[9]); // System Power: high nibble: Unknown (values 0 and 0x20 observed); low nibble = 0=off 0x5=on
           id(uart_water_byte10).publish_state(bytes[10]);
-          id(set_temp_read).publish_state((bytes[11]/2.0)); //Set temp - measured in 0.5 degrees C.
-          id(outlet_temp).publish_state((bytes[12]/2.0));  //Outlet temp - measured in 0.5 degrees C.
-          id(inlet_temp).publish_state((bytes[13]/2.0)); //Inlet temp - measured in 0.5 degrees C.
+          id(uart_water_byte11).publish_state((bytes[11]/2.0)); //Set temp - measured in 0.5 degrees C.
+          id(uart_water_byte12).publish_state((bytes[12]/2.0));  //Outlet temp - measured in 0.5 degrees C.
+          id(uart_water_byte13).publish_state((bytes[13]/2.0)); //Inlet temp - measured in 0.5 degrees C.
           id(uart_water_byte14).publish_state(bytes[14]); // Always 0
           id(uart_water_byte15).publish_state(bytes[15]); // Always 0
           id(uart_water_byte16).publish_state(bytes[16]); // Always 0
           id(uart_water_byte17).publish_state(bytes[17] / 10.0 / 2.0); // Sort of looks like GPM
-          id(water_flow_lpm).publish_state(bytes[18] / 10.0); //Flow rate - measured in 0.1 liters per minute (divide by 10 to get LPM)
+          id(uart_water_byte18).publish_state(bytes[18] / 10.0); //Flow rate - measured in 0.1 liters per minute (divide by 10 to get LPM)
+          id(water_flow_gpm).publish_state(bytes[18] / 10.0 * 0.2642);
           id(uart_water_byte19).publish_state(bytes[19]);
           id(uart_water_byte20).publish_state(bytes[20]);
           id(uart_water_byte21).publish_state(bytes[21]); // 190, 173, 186
@@ -105,7 +106,7 @@ uart:
           id(uart_water_byte27).publish_state(bytes[27]);
           id(uart_water_byte28).publish_state(bytes[28]); // 106, 52, 76  // could be runtime? 106
           id(uart_water_byte29).publish_state(bytes[29]); // 0, 18, 232
-          id(uart_water_byte30).publish_state(bytes[30]);
+          id(uart_water_byte30).publish_state(bytes[30]); // slowly increases, some outlier values 175-186
           id(uart_water_byte31).publish_state(bytes[31]);
           id(uart_water_byte32).publish_state(bytes[32]);
           id(uart_water_byte33).publish_state(bytes[33]); // If recirculation is on/off 2 or 0
@@ -115,7 +116,7 @@ uart:
           id(uart_water_byte37).publish_state(bytes[37]);
           id(uart_water_byte38).publish_state(bytes[38]);
           id(uart_water_byte39).publish_state(bytes[39]);
-          id(uart_water_byte40).publish_state(bytes[40]); // This is out of range of the data length, could be garbage value
+          id(uart_water_byte40).publish_state(bytes[40]); // checksum?
           }
           else if (bytes[0] == 247 && bytes[1] == 5 && bytes[2] == 80 && bytes[3] == 15 && bytes[4] == 144 && bytes[5] == 42) {
           // Gas information
@@ -141,16 +142,20 @@ uart:
           id(uart_gas_byte19).publish_state(bytes[19]); // Always 0
           id(uart_gas_byte20).publish_state(bytes[20]); // almost identical to high_byte_kcal
           id(uart_gas_byte21).publish_state(bytes[21]); // Always 1
-          id(low_byte_kcal).publish_state(bytes[22]); //Low byte current gas usage in kcal
-          id(high_byte_kcal).publish_state(bytes[23]); //High byte current gas usage in kcal
-          id(total_gas_use_m3).publish_state(bytes[24] / 10.0); //Total gas usage in 0.1m^3 (divide by 10 to get m^3)
+          id(uart_gas_byte22).publish_state(bytes[22]); //Low byte current gas usage in kcal
+          id(uart_gas_byte23).publish_state(bytes[23]); //High byte current gas usage in kcal
+          id(total_kcal).publish_state((bytes[23] * 256.0) + (bytes[22]));
+          id(instant_btus).publish_state(((bytes[23] * 256.0) + bytes[22]) * 3.965667);
+          id(uart_gas_byte24).publish_state(bytes[24] / 10.0); //Total gas usage in 0.1m^3 (divide by 10 to get m^3)
+          id(total_gas_use_ccf).publish_state(bytes[24] / 10.0 / 2.832);
+          id(total_gas_use_therms).publish_state(bytes[24] / 10.0 / 2.832 * 1.02845);
           id(uart_gas_byte25).publish_state(bytes[25]); // mostly 53, then 173
           id(uart_gas_byte26).publish_state(bytes[26]); // Always 0
           id(uart_gas_byte27).publish_state(bytes[27]); // Always 0
           id(uart_gas_byte28).publish_state(bytes[28]); // Always 0
           id(uart_gas_byte29).publish_state(bytes[29]); // Always 2
-          id(uart_gas_byte30).publish_state(bytes[30]); // Always 10
-          id(uart_gas_byte31).publish_state(bytes[31]); // Always 120
+          id(uart_gas_byte30).publish_state(bytes[30]); // slowly increasing? 10 - 15
+          id(uart_gas_byte31).publish_state(bytes[31]); // Always 6
           id(uart_gas_byte32).publish_state(bytes[32]); // Always 86
           id(uart_gas_byte33).publish_state(bytes[33]); // Always 173
           id(uart_gas_byte34).publish_state(bytes[34]); // Always 186
@@ -167,7 +172,7 @@ uart:
           id(uart_gas_byte45).publish_state(bytes[45]);
           id(uart_gas_byte46).publish_state(bytes[46]);
           id(uart_gas_byte47).publish_state(bytes[47]);
-          id(uart_gas_byte48).publish_state(bytes[48]); // This is out of range of the data length, could be garbage value      
+          id(uart_gas_byte48).publish_state(bytes[48]); // checksum?
           } else {
           // Handle other cases
           }
@@ -280,24 +285,24 @@ sensor:
     unit_of_measurement: points
     # internal: True
   - platform: template
-    name: "Temp Set - Read"
-    id: set_temp_read
+    name: "WByte_10 - Set Temp"
+    id: uart_water_byte11
     icon: mdi:thermometer-water
     unit_of_measurement: °C
     accuracy_decimals: 1
     device_class: "temperature"
     state_class: "measurement"
   - platform: template
-    name: "Temp Outlet"
-    id: outlet_temp
+    name: "Heat Exchange Outlet Temp"
+    id: uart_water_byte12
     icon: mdi:thermometer-water
     unit_of_measurement: °C
     accuracy_decimals: 1
     device_class: "temperature"
     state_class: "measurement"
   - platform: template
-    name: "Temp Inlet"
-    id: inlet_temp
+    name: "Heat Exchange Inlet Temp"
+    id: uart_water_byte13
     icon: mdi:thermometer-water
     unit_of_measurement: °C
     accuracy_decimals: 1
@@ -323,7 +328,7 @@ sensor:
     # internal: True
   - platform: template
     name: "Water Flow LPM"
-    id: water_flow_lpm # multiply by 0.2642 to get GPM
+    id: uart_water_byte18 # multiply by 0.2642 to get GPM
     icon: mdi:water-percent
     unit_of_measurement: l/min
   - platform: template
@@ -331,9 +336,6 @@ sensor:
     id: water_flow_gpm # this is derived from the Water Flow LPM entity
     icon: mdi:water-percent
     unit_of_measurement: GPM
-    lambda: |-
-      return (id(water_flow_lpm).state * 0.2642);
-    update_interval: 3s
   - platform: template
     name: "WByte_19 Unknown Flow"
     id: uart_water_byte19
@@ -560,17 +562,17 @@ sensor:
     # internal: True
   - platform: template
     name: "kCal Low Byte"
-    id: low_byte_kcal
+    id: uart_gas_byte22
     icon: mdi:gas-burner
     unit_of_measurement: kCal
   - platform: template
     name: "kCal High Byte"
-    id: high_byte_kcal
+    id: uart_gas_byte23
     icon: mdi:gas-burner
     unit_of_measurement: kCal
   - platform: template
     name: "Total Gas Use Cubic Meters"
-    id: total_gas_use_m3 # divide by 2.832 to get CCF
+    id: uart_gas_byte24 # divide by 2.832 to get CCF
     icon: mdi:gas-cylinder
     unit_of_measurement: m³
     accuracy_decimals: 1
@@ -693,32 +695,6 @@ sensor:
     name: "GByte_48"
     id: uart_gas_byte48
     internal: True
-  - platform: template
-    name: "Total Gas Use CCF"
-    id: total_gas_use_ccf # this is derived from the entity Total Gas Use Cubic Meters and converts to CCF for comparison to US energy bills.
-    icon: mdi:gas-cylinder
-    unit_of_measurement: CCF
-    accuracy_decimals: 1
-    lambda: |-
-      return (id(total_gas_use_m3).state/2.832);
-  - platform: template
-    name: "Total Gas Use Therms"
-    id: total_gas_use_therms # this is derived from the entity Total Gas Use CCF and one of the typical measurements for the utility company to bill against in the US.
-    icon: mdi:gas-cylinder   # this multiplier 1.02845 was obtained from my energy bill - it is known as "Therm Factor" on my bill
-    unit_of_measurement: therms
-    accuracy_decimals: 1
-    lambda: |-
-      return (id(total_gas_use_ccf).state * 1.02845); 
-  - platform: template
-    name: "Instant BTUs"
-    id: instant_btus
-    icon: mdi:gas-burner
-    unit_of_measurement: "kbtu/hr"
-    accuracy_decimals: 3
-    state_class: "measurement"
-    lambda: |-
-      return max((id(outlet_temp).state - id(inlet_temp).state) * id(water_flow_gpm).state * 8.334 * 60.0 / 0.92 / 1000.0, 0.0);
-    update_interval: 3s
   # calculated as shown here https://www.plctalk.net/threads/low-byte-high-byte.78315/
   - platform: template
     name: "Total kCal"
@@ -727,6 +703,23 @@ sensor:
     unit_of_measurement: kCal
     accuracy_decimals: 2
     state_class: "measurement"
-    lambda: |-
-      return (id(high_byte_kcal).state*256) + (id(low_byte_kcal).state); 
-    update_interval: 3s
+  - platform: template
+    name: "Instant BTUs"
+    id: instant_btus
+    icon: mdi:gas-burner
+    unit_of_measurement: "btu/hr"
+    accuracy_decimals: 1
+    state_class: "measurement"
+  - platform: template
+    name: "Total Gas Use CCF"
+    id: total_gas_use_ccf # this is derived from the entity Total Gas Use Cubic Meters and converts to CCF for comparison to US energy bills.
+    icon: mdi:gas-cylinder
+    unit_of_measurement: CCF
+    accuracy_decimals: 1
+    state_class: "measurement"
+  - platform: template
+    name: "Total Gas Use Therms"
+    id: total_gas_use_therms # this is derived from the entity Total Gas Use CCF and one of the typical measurements for the utility company to bill against in the US.
+    icon: mdi:gas-cylinder   # this multiplier 1.02845 was obtained from my energy bill - it is known as "Therm Factor" on my bill
+    unit_of_measurement: therms
+    accuracy_decimals: 1
